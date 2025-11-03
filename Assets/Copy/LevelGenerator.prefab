@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8505365167556036985
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1480904619263132864}
+  - component: {fileID: 1069691992826866896}
+  m_Layer: 0
+  m_Name: LevelGenerator
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1480904619263132864
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8505365167556036985}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1069691992826866896
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8505365167556036985}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ff74102f880fa584f8c7c3a5c4e53fd5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  floorPrefab: {fileID: 919132149155446097, guid: 27309f476d0085947b1d2803165e7790,
+    type: 3}
+  wallPrefab: {fileID: 7377147443286012800, guid: 881ddbf5fff980b4e8dbc36cc61a93da,
+    type: 3}
+  tileSize: 5
+  prefabWorldSize: 5
+  portalPrefab: {fileID: 9124874548324062926, guid: 7a6b93e0527e2f240ad1ac4ee29b45e6,
+    type: 3}
+  blockSpawnY: 1
+  greenBlockPrefab: {fileID: 6618962714915164882, guid: 8aa00f4daf2d8ce4389040d10226b310,
+    type: 3}
+  blueBlockPrefab: {fileID: 7886934976963264125, guid: 722afdfca176fa64c84f11028c4814ff,
+    type: 3}
+  purpleBlockPrefab: {fileID: 9188072745133153600, guid: 4e3c4d01025450b4c99c07c14aa9342d,
+    type: 3}
+  redBlockPrefab: {fileID: 5707889584811633445, guid: 735227442f5811d48a62a7d96d12d765,
+    type: 3}
