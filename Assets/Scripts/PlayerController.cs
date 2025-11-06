@@ -45,8 +45,29 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        moveInput = new Vector3(Input.GetAxis("Horizontal"), 0f, Input.GetAxis("Vertical"));
+        // (★★★★★ 1. 핵심 수정: 'GetAxis' -> 'GetAxisRaw'로 변경 ★★★★★)
+        // GetAxisRaw는 -1, 0, 1만 반환하며 중간값이 없어 쏠림(Drift)이 원천 차단됩니다.
+        float horizontalInput = Input.GetAxisRaw("Horizontal");
+        float verticalInput = Input.GetAxisRaw("Vertical");
 
+        // (★★★★★ 2. 데드존 로직 '삭제' ★★★★★)
+        // GetAxisRaw를 쓰면 데드존 로직(0.1f 체크)이 더 이상 필요 없습니다.
+        /*
+        float deadzone = 0.1f;
+        if (Mathf.Abs(horizontalInput) < deadzone)
+        {
+            horizontalInput = 0f;
+        }
+        if (Mathf.Abs(verticalInput) < deadzone)
+        {
+            verticalInput = 0f;
+        }
+        */
+
+        // 3. '깨끗해진' 입력값으로 moveInput을 설정합니다.
+        moveInput = new Vector3(horizontalInput, 0f, verticalInput);
+
+        // (이하는 동일한 대시 로직)
         if (Input.GetKeyDown(KeyCode.LeftShift) && !isDashing && dashCooldownTimer <= 0f)
         {
             StartCoroutine(Dash());
@@ -64,22 +85,30 @@ public class PlayerController : MonoBehaviour
 
         if (!isDashing)
         {
-            // (★★★★★ 1. 핵심 수정: 데드존(Deadzone) 추가 ★★★★★)
-            // 입력 벡터의 크기가 0.1f (임의의 작은 값)보다 작으면
-            // 드리프트로 간주하고 속도를 0으로 고정합니다.
-            if (moveInput.magnitude < 0.1f)
-            {
-                rb.velocity = new Vector3(0f, 0f, 0f);
-            }
-            else // 0.1f 이상일 때만 정상적으로 움직입니다.
-            {
-                Vector3 camForward = Vector3.Scale(mainCamera.transform.forward, new Vector3(1, 0, 1)).normalized;
-                Vector3 camRight = Vector3.Scale(mainCamera.transform.right, new Vector3(1, 0, 1)).normalized;
-                Vector3 moveDirection = (camForward * moveInput.z + camRight * moveInput.x).normalized;
-                rb.velocity = new Vector3(moveDirection.x * moveSpeed, 0f, moveDirection.z * moveSpeed);
-            }
+            // --- (★★★★★ 1. 이 부분이 통째로 수정되었습니다 ★★★★★) ---
+
+            // 1. 카메라 방향을 기준으로 목표 '방향'을 계산합니다.
+            Vector3 camForward = Vector3.Scale(mainCamera.transform.forward, new Vector3(1, 0, 1)).normalized;
+            Vector3 camRight = Vector3.Scale(mainCamera.transform.right, new Vector3(1, 0, 1)).normalized;
+            Vector3 moveDirection = (camForward * moveInput.z + camRight * moveInput.x).normalized;
+
+            // 2. '목표 속도' (targetVelocity)를 계산합니다.
+            Vector3 targetVelocity = new Vector3(moveDirection.x * moveSpeed, 0f, moveDirection.z * moveSpeed);
+
+            // 3. 현재 속도(rb.velocity)와 목표 속도(targetVelocity)의 '차이'를 계산합니다.
+            Vector3 velocityChange = (targetVelocity - rb.velocity);
+
+            // 4. Y축 속도는 변경하지 않습니다. (중력 등에 영향 주지 않기 위함)
+            velocityChange.y = 0f;
+
+            // 5. 계산된 '속도 차이'만큼 '힘'을 가해 목표 속도로 만듭니다.
+            // (ForceMode.VelocityChange는 질량을 무시하고 즉각적인 속도 변화를 줍니다)
+            rb.AddForce(velocityChange, ForceMode.VelocityChange);
+
+            // --- (rb.velocity = ... 코드는 삭제되었습니다) ---
         }
 
+        // 마우스 바라보기는 그대로 둡니다.
         LookAtMouse();
     }
 
