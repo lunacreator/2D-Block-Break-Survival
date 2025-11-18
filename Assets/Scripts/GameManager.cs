@@ -31,7 +31,7 @@ public class GameManager : MonoBehaviour
     [Header("UI Elements")]
     public Image[] hearts;
     public GameObject gameOverPanel;
-    public TextMeshProUGUI timeText;        
+    public TextMeshProUGUI timeText;        // ★ Time Text の参照は重要
 
     [Header("VFX")]
     public GameObject smallExplosionPrefab;
@@ -52,7 +52,6 @@ public class GameManager : MonoBehaviour
 
     [Header("Scene Management")]
     public string mainMenuSceneName = "MainMenu";
-    // NOTE: isPaused/pausePanel removed as per user request to exclude pause functionality
 
     void Awake()
     {
@@ -82,7 +81,7 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
-        // Only advance time if TimeScale is > 0 (game is running, not game over)
+        // 時間が動いている（ゲーム中である）場合にのみタイマーを更新
         if (Time.timeScale > 0f) 
         {
             elapsedTime += Time.deltaTime;
@@ -134,8 +133,16 @@ public class GameManager : MonoBehaviour
             gameOverPanel = panel;
             gameOverPanel.SetActive(false); 
 
+            // ★ ADDED: TimeTextをシーンロード時に再取得して接続を試みる (安全策)
+            // timeTextフィールドがインスペクターで接続されていない場合に備える
+            if (timeText == null)
+            {
+                // FindObjectOfTypeは負荷が高いが、安全のためロード時のみ使用
+                timeText = FindObjectOfType<TextMeshProUGUI>(); 
+            }
+
             Transform restartButtonChild = panel.transform.Find("RestartButton");
-            Transform mainMenuButtonChild = panel.transform.Find("MainMenuButton"); // ★ ADDED: Find MainMenuButton
+            Transform mainMenuButtonChild = panel.transform.Find("MainMenuButton"); 
 
             // Connect Restart Button
             if (restartButtonChild != null)
@@ -157,7 +164,7 @@ public class GameManager : MonoBehaviour
                 Debug.LogError("Could not find 'RestartButton' GameObject under GameOverPanel!");
             }
             
-            // ★ Connect Main Menu Button
+            // Connect Main Menu Button
             if (mainMenuButtonChild != null)
             {
                 UnityEngine.UI.Button mainMenuButton = mainMenuButtonChild.GetComponent<UnityEngine.UI.Button>();
@@ -165,7 +172,7 @@ public class GameManager : MonoBehaviour
                 if (mainMenuButton != null)
                 {
                     mainMenuButton.onClick.RemoveAllListeners();
-                    mainMenuButton.onClick.AddListener(LoadMainMenu); // ★ Hook up LoadMainMenu
+                    mainMenuButton.onClick.AddListener(LoadMainMenu); 
                 }
                 else
                 {
@@ -188,6 +195,9 @@ public class GameManager : MonoBehaviour
         // 6. Update UI
         UpdateHeartsUI();
         UpdateTimeDisplay(); 
+        
+        // ★ 追記: シーンロード時に念のため時間を再開
+        Time.timeScale = 1f;
     }
 
     private void UpdateTimeDisplay()
@@ -209,10 +219,9 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ★ ADDED: Load Main Menu Function
     public void LoadMainMenu()
     {
-        // Reset level and game state variables
+        // Reset game state variables
         playerLives = maxPlayerLives;
         currentLevelLength = 60;
         currentLevelWidth = 40;
@@ -226,7 +235,7 @@ public class GameManager : MonoBehaviour
         elapsedTime = 0f; 
         Time.timeScale = 1f; 
 
-        // Load the main menu scene using the variable
+        // Load the main menu scene
         SceneManager.LoadScene(mainMenuSceneName);
     }
 
@@ -256,15 +265,18 @@ public class GameManager : MonoBehaviour
 
     private void HandleGameOver()
     {
-        if (currentPlayer == null && Time.timeScale == 0f) return; 
+        // Prevent double game over if time is already stopped
+        if (Time.timeScale == 0f) return; 
 
         if (gameOverPanel != null)
         {
             gameOverPanel.SetActive(true);
         }
         
+        // ゲームオーバー時に時間を停止 (タイマーも停止)
         Time.timeScale = 0f; 
 
+        // Existing handling of player death visuals
         if (currentPlayer != null)
         {
             Vector3 playerXZPos = new Vector3(currentPlayer.transform.position.x, 0, currentPlayer.transform.position.z);
@@ -326,9 +338,9 @@ public class GameManager : MonoBehaviour
 
     public void RestartGame()
     {
+        // ★ 非常に重要: TimeScaleを1に戻すことでタイマーを動かす
         Time.timeScale = 1f; 
-        // isPaused logic removed as per user request to exclude pause functionality
-
+        
         if (gameOverPanel != null)
         {
             gameOverPanel.SetActive(false);
@@ -347,6 +359,7 @@ public class GameManager : MonoBehaviour
         purpleChance = 0.0f;
         redChance = 0.0f;
 
+        // シーンをリロードする
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 }
