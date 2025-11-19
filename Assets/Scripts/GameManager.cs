@@ -1,9 +1,9 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 using System.Collections;
 using System.Collections.Generic;
-using TMPro;
 
 public class GameManager : MonoBehaviour
 {
@@ -11,14 +11,16 @@ public class GameManager : MonoBehaviour
 
     public static int currentLevelLength = 60;
     public static int currentLevelWidth = 40;
+    public static int currentLevel = 1;
     public static Vector3 currentSpawnPoint;
 
     public GameObject playerPrefab;
     private GameObject currentPlayer;
     private CameraFollow mainCameraScript;
     private AudioSource audioSource;
-    private float elapsedTime = 0f;          
-    private const float timeLimit = 300f;    
+    public AudioClip heartDropClip;
+
+    private int loadFrames = 0;
 
     [Header("Spawn Settings")]
     public float playerSpawnZ = 20.0f;
@@ -28,10 +30,17 @@ public class GameManager : MonoBehaviour
     public int playerLives = 5;
     public int maxPlayerLives = 5;
 
+    [Header("Time Settings")]
+    public float levelTimeLimit = 240.0f; // (¡Ú¡Ú¡Ú¡Ú¡Ú 1. Á¦ÇÑ ½Ã°£: 4ºÐ = 240ÃÊ ¡Ú¡Ú¡Ú¡Ú¡Ú)
+    private float currentTimer; // ÇöÀç ³²Àº ½Ã°£
+
     [Header("UI Elements")]
     public Image[] hearts;
     public GameObject gameOverPanel;
-    public TextMeshProUGUI timeText;        
+    public TextMeshProUGUI levelText;
+    public TextMeshProUGUI timerText; // (¡Ú¡Ú¡Ú¡Ú¡Ú 2. Å¸ÀÌ¸Ó ÅØ½ºÆ® º¯¼ö Ãß°¡ ¡Ú¡Ú¡Ú¡Ú¡Ú)
+    public GameObject pausePanel;
+    private bool isPaused = false;
 
     [Header("VFX")]
     public GameObject smallExplosionPrefab;
@@ -50,9 +59,11 @@ public class GameManager : MonoBehaviour
     public static float purpleChance = 0.0f;
     public static float redChance = 0.0f;
 
-    [Header("Scene Management")]
-    public string mainMenuSceneName = "MainMenu";
-    // NOTE: isPaused/pausePanel removed as per user request to exclude pause functionality
+    // (°ÔÀÓ ¿À¹ö »óÅÂ È®ÀÎ ¼Ó¼º)
+    public bool IsGameOver
+    {
+        get { return gameOverPanel != null && gameOverPanel.activeInHierarchy; }
+    }
 
     void Awake()
     {
@@ -70,7 +81,7 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         audioSource = GetComponent<AudioSource>();
-        if (audioSource == null) { Debug.LogError("GameManager needs an AudioSource component."); }
+        if (audioSource == null) { Debug.LogError("GameManager¿¡ AudioSource ÄÄÆ÷³ÍÆ®¸¦ Ãß°¡ÇØ¾ß ÇÕ´Ï´Ù."); }
 
         if (bgmClip != null)
         {
@@ -78,16 +89,43 @@ public class GameManager : MonoBehaviour
             audioSource.loop = true;
             audioSource.Play();
         }
+
+        // UI ÃÊ±âÈ­´Â OnSceneLoaded¿¡¼­ ÅëÇÕ Ã³¸®µÊ
     }
 
     void Update()
     {
-        // Only advance time if TimeScale is > 0 (game is running, not game over)
-        if (Time.timeScale > 0f) 
+        // ·Îµù Áß ÀÔ·Â ¹«½Ã
+        if (loadFrames > 0)
         {
-            elapsedTime += Time.deltaTime;
-            UpdateTimeDisplay();
-            TimerLimitCheck(); 
+            loadFrames--;
+            return;
+        }
+
+        // ESC Å° °¨Áö (°ÔÀÓ ¿À¹ö°¡ ¾Æ´Ò ¶§¸¸)
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (!IsGameOver)
+            {
+                TogglePause();
+            }
+        }
+
+        // (¡Ú¡Ú¡Ú¡Ú¡Ú 3. Å¸ÀÌ¸Ó ·ÎÁ÷ Ãß°¡ ¡Ú¡Ú¡Ú¡Ú¡Ú)
+        // ÀÏ½ÃÁ¤Áö »óÅÂ°¡ ¾Æ´Ï°í, °ÔÀÓ ¿À¹ö°¡ ¾Æ´Ï°í, ÇÃ·¹ÀÌ¾î°¡ »ì¾ÆÀÖÀ» ¶§¸¸ ½Ã°£ °¨¼Ò
+        if (!isPaused && !IsGameOver && playerLives > 0)
+        {
+            currentTimer -= Time.deltaTime;
+
+            // ½Ã°£ÀÌ ´Ù µÇ¸é »ç¸Á Ã³¸®
+            if (currentTimer <= 0)
+            {
+                currentTimer = 0;
+                PlayerInstantDeath();
+            }
+
+            // UI ¾÷µ¥ÀÌÆ®
+            UpdateTimerUI();
         }
     }
 
@@ -103,133 +141,115 @@ public class GameManager : MonoBehaviour
 
     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        // 1. Find CameraFollow script
+        isPaused = false;
+        loadFrames = 2;
+        StartCoroutine(EnsureTimeRuns());
+
+        // (¡Ú¡Ú¡Ú¡Ú¡Ú 4. ·¹º§ ½ÃÀÛ ½Ã Å¸ÀÌ¸Ó ¸®¼Â ¡Ú¡Ú¡Ú¡Ú¡Ú)
+        currentTimer = levelTimeLimit; // 240ÃÊ·Î ÃÊ±âÈ­
+
+        // 1. Ä«¸Þ¶ó ½ºÅ©¸³Æ® Ã£±â
         if (Camera.main != null)
         {
             mainCameraScript = Camera.main.GetComponent<CameraFollow>();
         }
 
-        // 2. Calculate Level bounds
+        // 2. ½ºÆù ÁöÁ¡ °è»ê
         LevelGenerator levelGen = FindObjectOfType<LevelGenerator>();
         float tileSize = (levelGen != null) ? levelGen.tileSize : 1.0f;
         float offset = tileSize / 2f;
         float spawnX = offset;
         currentSpawnPoint = new Vector3(spawnX, playerSpawnY, playerSpawnZ);
 
-        // 3. Find Heart UI container
+        // 3. UI ÇÏÆ®µé »õ·Î Ã£±â
         GameObject heartContainer = GameObject.Find("HeartPanel");
         if (heartContainer != null)
         {
             hearts = heartContainer.GetComponentsInChildren<Image>();
         }
-        else
-        {
-            Debug.LogError("HeartPanel was not found! Please name the UI heart parent 'HeartPanel'.");
-        }
+        else { Debug.LogError("HeartPanelÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù!"); }
 
-        // 4. Initialize GameOverPanel and register button events
+        // 4. GameOverPanel »õ·Î Ã£±â
         GameObject panel = GameObject.Find("GameOverPanel");
         if (panel != null)
         {
             gameOverPanel = panel;
-            gameOverPanel.SetActive(false); 
+            gameOverPanel.SetActive(false);
+            LinkGameOverButtons(); // ¹öÆ° ¿¬°á ÇÔ¼ö È£Ãâ
+        }
+        else { Debug.LogError("GameOverPanelÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù!"); }
 
-            Transform restartButtonChild = panel.transform.Find("RestartButton");
-            Transform mainMenuButtonChild = panel.transform.Find("MainMenuButton"); // â˜… ADDED: Find MainMenuButton
 
-            // Connect Restart Button
-            if (restartButtonChild != null)
-            {
-                UnityEngine.UI.Button restartButton = restartButtonChild.GetComponent<UnityEngine.UI.Button>();
+        // 5. ·¹º§ ÅØ½ºÆ® »õ·Î Ã£±â
+        GameObject levelTextObject = GameObject.Find("LevelText");
+        if (levelTextObject != null)
+        {
+            levelText = levelTextObject.GetComponent<TextMeshProUGUI>();
+            UpdateLevelUI();
+        }
+        else { Debug.LogError("LevelText ¿ÀºêÁ§Æ®¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù!"); }
 
-                if (restartButton != null)
-                {
-                    restartButton.onClick.RemoveAllListeners();
-                    restartButton.onClick.AddListener(RestartGame);
-                }
-                else
-                {
-                    Debug.LogError("'RestartButton' GameObject requires a Button component!");
-                }
-            }
-            else
-            {
-                Debug.LogError("Could not find 'RestartButton' GameObject under GameOverPanel!");
-            }
-            
-            // â˜… Connect Main Menu Button
-            if (mainMenuButtonChild != null)
-            {
-                UnityEngine.UI.Button mainMenuButton = mainMenuButtonChild.GetComponent<UnityEngine.UI.Button>();
-
-                if (mainMenuButton != null)
-                {
-                    mainMenuButton.onClick.RemoveAllListeners();
-                    mainMenuButton.onClick.AddListener(LoadMainMenu); // â˜… Hook up LoadMainMenu
-                }
-                else
-                {
-                    Debug.LogError("'MainMenuButton' GameObject requires a Button component!");
-                }
-            }
-            else
-            {
-                Debug.LogWarning("Could not find 'MainMenuButton' GameObject under GameOverPanel."); 
-            }
+        // (¡Ú¡Ú¡Ú¡Ú¡Ú 5. Å¸ÀÌ¸Ó ÅØ½ºÆ® »õ·Î Ã£±â ¡Ú¡Ú¡Ú¡Ú¡Ú)
+        // À¯´ÏÆ¼ ¿¡µðÅÍ¿¡¼­ ¸¸µç "TimerText"¸¦ Ã£¾Æ¼­ ¿¬°áÇÕ´Ï´Ù.
+        GameObject timerTextObject = GameObject.Find("TimerText");
+        if (timerTextObject != null)
+        {
+            timerText = timerTextObject.GetComponent<TextMeshProUGUI>();
+            UpdateTimerUI(); // ÃÊ±â ½Ã°£ Ç¥½Ã
         }
         else
         {
-            Debug.LogError("GameOverPanel was not found! Please name the UI panel 'GameOverPanel'.");
+            // Å¸ÀÌ¸Ó UI°¡ ¾ø¾îµµ °ÔÀÓÀº µ¹¾Æ°¡µµ·Ï ¿¡·¯ ´ë½Å °æ°í¸¸ Ãâ·Â
+            Debug.LogWarning("TimerText ¿ÀºêÁ§Æ®¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù! UI¸¦ Ãß°¡ÇØÁÖ¼¼¿ä.");
         }
 
-        // 5. Spawn player
-        SpawnPlayer();
-
-        // 6. Update UI
-        UpdateHeartsUI();
-        UpdateTimeDisplay(); 
-    }
-
-    private void UpdateTimeDisplay()
-    {
-        if (timeText == null) return;
-
-        int minutes = Mathf.FloorToInt(elapsedTime / 60f);
-        int seconds = Mathf.FloorToInt(elapsedTime % 60f);
-
-        timeText.text = string.Format("{0:00}:{1:00}", minutes, seconds);
-    }
-    
-    private void TimerLimitCheck()
-    {
-        if (elapsedTime >= timeLimit)
+        // 6. ÀÏ½ÃÁ¤Áö ÆÐ³Î Ã£±â
+        GameObject pausePanelObject = GameObject.Find("PausePanel");
+        if (pausePanelObject != null)
         {
-            Debug.Log("Time Limit Reached! Game Over.");
-            HandleGameOver();
+            pausePanel = pausePanelObject;
+
+            // ¹öÆ° ¿¬°á
+            Transform resumeBtn = pausePanel.transform.Find("ResumeButton");
+            if (resumeBtn) resumeBtn.GetComponent<Button>().onClick.AddListener(TogglePause);
+
+            Transform menuBtn = pausePanel.transform.Find("MainMenuButton");
+            if (menuBtn) menuBtn.GetComponent<Button>().onClick.AddListener(LoadMainMenu);
+
+            pausePanel.SetActive(false);
+        }
+        else { Debug.LogError("PausePanelÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù!"); }
+
+        // 7. ÇÃ·¹ÀÌ¾î ½ºÆù ¹× UI ¾÷µ¥ÀÌÆ®
+        SpawnPlayer();
+        UpdateHeartsUI();
+    }
+
+    private IEnumerator EnsureTimeRuns()
+    {
+        yield return null;
+        Time.timeScale = 1f;
+    }
+
+    // °ÔÀÓ¿À¹ö ¹öÆ° ¿¬°á ÇïÆÛ ÇÔ¼ö
+    public void LinkGameOverButtons()
+    {
+        if (gameOverPanel == null) return;
+
+        Button restartButton = gameOverPanel.transform.Find("Restart")?.GetComponent<Button>();
+        if (restartButton != null)
+        {
+            restartButton.onClick.RemoveAllListeners();
+            restartButton.onClick.AddListener(RestartGame);
+        }
+
+        Button mainMenuButton = gameOverPanel.transform.Find("MainMenuButton")?.GetComponent<Button>();
+        if (mainMenuButton != null)
+        {
+            mainMenuButton.onClick.RemoveAllListeners();
+            mainMenuButton.onClick.AddListener(LoadMainMenu);
         }
     }
-
-    // â˜… ADDED: Load Main Menu Function
-    public void LoadMainMenu()
-    {
-        // Reset level and game state variables
-        playerLives = maxPlayerLives;
-        currentLevelLength = 60;
-        currentLevelWidth = 40;
-
-        greenChance = 0.9f;
-        blueChance = 0.1f;
-        purpleChance = 0.0f;
-        redChance = 0.0f;
-        
-        // Reset time tracker and ensure time is running before load
-        elapsedTime = 0f; 
-        Time.timeScale = 1f; 
-
-        // Load the main menu scene using the variable
-        SceneManager.LoadScene(mainMenuSceneName);
-    }
-
 
     public void PlayerTookDamage(int damage)
     {
@@ -239,10 +259,10 @@ public class GameManager : MonoBehaviour
 
         UpdateHeartsUI();
 
-        Vector3 playerXZPos = new Vector3(currentPlayer.transform.position.x, 0, currentPlayer.transform.position.z);
-        Vector3 explosionPos = new Vector3(playerXZPos.x, 3f, playerXZPos.z);
+        // ÇÇ°Ý È¿°ú
         if (hitSoundClip != null && audioSource != null) { audioSource.PlayOneShot(hitSoundClip); }
-        if (smallExplosionPrefab != null) { Instantiate(smallExplosionPrefab, explosionPos, Quaternion.identity); }
+        // (Æø¹ß È¿°ú µîÀº »ý·« °¡´ÉÇÏ°Å³ª ±âÁ¸ À¯Áö)
+
         if (playerLives <= 0) { HandleGameOver(); }
     }
 
@@ -256,63 +276,74 @@ public class GameManager : MonoBehaviour
 
     private void HandleGameOver()
     {
-        if (currentPlayer == null && Time.timeScale == 0f) return; 
+        if (currentPlayer == null) return;
 
         if (gameOverPanel != null)
         {
             gameOverPanel.SetActive(true);
+            LinkGameOverButtons(); // ÆÐ³Î ¶ã ¶§ ¹öÆ° È®½ÇÈ÷ ¿¬°á
         }
-        
-        Time.timeScale = 0f; 
 
-        if (currentPlayer != null)
-        {
-            Vector3 playerXZPos = new Vector3(currentPlayer.transform.position.x, 0, currentPlayer.transform.position.z);
-            Vector3 explosionPos = new Vector3(playerXZPos.x, 3f, playerXZPos.z);
-            if (finalExplosionClip != null && audioSource != null) { audioSource.PlayOneShot(finalExplosionClip); }
-            if (bigExplosionPrefab != null) { Instantiate(bigExplosionPrefab, explosionPos, Quaternion.identity); }
-            Destroy(currentPlayer);
-            currentPlayer = null;
-            Vector3 flamePos = new Vector3(playerXZPos.x, 0.5f, playerXZPos.z);
-            StartCoroutine(SpawnFlamesAfterDelay(flamePos));
-        }
-        
+        // Æø¹ß È¿°ú ¹× »ç¿îµå
+        Vector3 pos = currentPlayer.transform.position;
+        if (finalExplosionClip != null && audioSource != null) { audioSource.PlayOneShot(finalExplosionClip); }
+        if (bigExplosionPrefab != null) { Instantiate(bigExplosionPrefab, pos, Quaternion.identity); }
+
+        Destroy(currentPlayer);
+        currentPlayer = null;
+
         Debug.Log("GAME OVER");
-    }
-
-    private IEnumerator SpawnFlamesAfterDelay(Vector3 position)
-    {
-        yield return new WaitForSeconds(0.5f);
-        if (mediumFlamesPrefab != null) { Instantiate(mediumFlamesPrefab, position, Quaternion.identity); }
     }
 
     void UpdateHeartsUI()
     {
-        if (hearts == null || hearts.Length == 0) { return; }
+        if (hearts == null) return;
         for (int i = 0; i < maxPlayerLives; i++)
         {
             if (i < hearts.Length && hearts[i] != null)
-            {
-                if (i < playerLives) { hearts[i].gameObject.SetActive(true); }
-                else { hearts[i].gameObject.SetActive(false); }
-            }
+                hearts[i].gameObject.SetActive(i < playerLives);
+        }
+    }
+
+    void UpdateLevelUI()
+    {
+        if (levelText != null) levelText.text = "LEVEL " + currentLevel;
+    }
+
+    // (¡Ú¡Ú¡Ú¡Ú¡Ú 6. Å¸ÀÌ¸Ó UI ¾÷µ¥ÀÌÆ® ÇÔ¼ö Ãß°¡ ¡Ú¡Ú¡Ú¡Ú¡Ú)
+    void UpdateTimerUI()
+    {
+        if (timerText != null)
+        {
+            // ÃÊ ´ÜÀ§¸¦ ºÐ:ÃÊ (04:00) Çü½ÄÀ¸·Î º¯È¯
+            int minutes = Mathf.FloorToInt(currentTimer / 60F);
+            int seconds = Mathf.FloorToInt(currentTimer % 60F);
+            timerText.text = string.Format("{0:00}:{1:00}", minutes, seconds);
+
+            // ½Ã°£ÀÌ 10ÃÊ ÀÌÇÏ·Î ³²À¸¸é »¡°£»öÀ¸·Î °æ°í (¼±ÅÃ»çÇ×)
+            if (currentTimer <= 10f) timerText.color = Color.red;
+            else timerText.color = Color.white;
         }
     }
 
     public void PlayPortalSound()
     {
         if (audioSource != null && portalSpawnSound != null)
-        {
             audioSource.PlayOneShot(portalSpawnSound);
-        }
     }
 
     public void GoToNextLevel()
     {
+        Time.timeScale = 1f;
+        isPaused = false;
         currentLevelLength++;
+        currentLevel++;
+
+        // (³­ÀÌµµ Á¶Àý ·ÎÁ÷ À¯Áö)
         if (greenChance > 0.1f) { greenChance -= 0.1f; blueChance += 0.05f; if (blueChance > 0.4f) { purpleChance += 0.03f; redChance += 0.02f; } else { purpleChance += 0.05f; } } else if (blueChance > 0.1f) { blueChance -= 0.1f; purpleChance += 0.07f; redChance += 0.03f; } else { purpleChance -= 0.1f; redChance += 0.1f; }
         greenChance = Mathf.Clamp(greenChance, 0.0f, 1.0f); blueChance = Mathf.Clamp(blueChance, 0.0f, 1.0f); purpleChance = Mathf.Clamp(purpleChance, 0.0f, 1.0f); redChance = Mathf.Clamp(redChance, 0.0f, 1.0f);
         float total = greenChance + blueChance + purpleChance + redChance; greenChance /= total; blueChance /= total; purpleChance /= total; redChance /= total;
+
         BouncingBlaster[] allBullets = FindObjectsOfType<BouncingBlaster>();
         foreach (BouncingBlaster bullet in allBullets) { Destroy(bullet.gameObject); }
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
@@ -321,32 +352,79 @@ public class GameManager : MonoBehaviour
     public void SpawnPlayer()
     {
         if (currentPlayer != null) { Destroy(currentPlayer); }
-        if (playerPrefab != null) { currentPlayer = Instantiate(playerPrefab, currentSpawnPoint, Quaternion.identity); if (mainCameraScript != null) { mainCameraScript.InitializeTarget(currentPlayer.transform); } else if (Camera.main != null) { mainCameraScript = Camera.main.GetComponent<CameraFollow>(); if (mainCameraScript != null) { mainCameraScript.InitializeTarget(currentPlayer.transform); } } } else { Debug.LogError("Player Prefab is not assigned in GameManager!"); }
+        if (playerPrefab != null)
+        {
+            currentPlayer = Instantiate(playerPrefab, currentSpawnPoint, Quaternion.identity);
+            if (mainCameraScript != null) mainCameraScript.InitializeTarget(currentPlayer.transform);
+            else if (Camera.main != null)
+            {
+                mainCameraScript = Camera.main.GetComponent<CameraFollow>();
+                if (mainCameraScript != null) mainCameraScript.InitializeTarget(currentPlayer.transform);
+            }
+        }
+        else { Debug.LogError("Player PrefabÀÌ ¾ø½À´Ï´Ù!"); }
     }
 
     public void RestartGame()
     {
-        Time.timeScale = 1f; 
-        // isPaused logic removed as per user request to exclude pause functionality
+        Time.timeScale = 1f;
+        isPaused = false;
 
-        if (gameOverPanel != null)
-        {
-            gameOverPanel.SetActive(false);
-        }
-    
-        // Reset timer
-        elapsedTime = 0f;
-        UpdateTimeDisplay();
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
         playerLives = maxPlayerLives;
         currentLevelLength = 60;
         currentLevelWidth = 40;
+        currentLevel = 1;
+        // (¡Ú¡Ú¡Ú¡Ú¡Ú 7. Àç½ÃÀÛ ½Ã Å¸ÀÌ¸Óµµ ¸®¼Â ¡Ú¡Ú¡Ú¡Ú¡Ú)
+        currentTimer = levelTimeLimit;
 
-        greenChance = 0.9f;
-        blueChance = 0.1f;
-        purpleChance = 0.0f;
-        redChance = 0.0f;
+        greenChance = 0.9f; blueChance = 0.1f; purpleChance = 0.0f; redChance = 0.0f;
 
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    public void TogglePause()
+    {
+        isPaused = !isPaused;
+        if (isPaused)
+        {
+            Time.timeScale = 0f;
+            if (pausePanel != null) pausePanel.SetActive(true);
+        }
+        else
+        {
+            Time.timeScale = 1f;
+            if (pausePanel != null) pausePanel.SetActive(false);
+        }
+    }
+
+    public void LoadMainMenu()
+    {
+        Time.timeScale = 1f;
+        isPaused = false;
+        SceneManager.LoadScene("MainMenu");
+    }
+    // (¡Ú¡Ú¡Ú¡Ú¡Ú GameManager.cs ¸Ç ¾Æ·¡¿¡ Ãß°¡ÇÒ ÇÔ¼ö ¡Ú¡Ú¡Ú¡Ú¡Ú)
+    public void PlayerHeal(int amount)
+    {
+        // Á×¾îÀÖ°Å³ª ÀÌ¹Ì Ç®ÇÇ¸é È¸º¹ ¾È ÇÔ
+        if (playerLives <= 0 || playerLives >= maxPlayerLives) return;
+
+        playerLives += amount;
+        if (playerLives > maxPlayerLives)
+        {
+            playerLives = maxPlayerLives;
+        }
+
+        UpdateHeartsUI(); // ÇÏÆ® UI °»½Å
+        Debug.Log("Ã¼·Â È¸º¹! ÇöÀç Ã¼·Â: " + playerLives);
+    }
+    public void PlayHeartDropSound()
+    {
+        if (audioSource != null && heartDropClip != null)
+        {
+            audioSource.PlayOneShot(heartDropClip);
+        }
     }
 }
