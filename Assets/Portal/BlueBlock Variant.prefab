@@ -101,6 +101,9 @@ MonoBehaviour:
   isPortalBlock: 0
   portalPrefab: {fileID: 9124874548324062926, guid: 7a6b93e0527e2f240ad1ac4ee29b45e6,
     type: 3}
+  heartItemPrefab: {fileID: 4080546556539267070, guid: 0ceeca6703d9c824a81542e8b571da24,
+    type: 3}
+  dropChance: 0.05
 --- !u!64 &-1927810355507367518
 MeshCollider:
   m_ObjectHideFlags: 0
