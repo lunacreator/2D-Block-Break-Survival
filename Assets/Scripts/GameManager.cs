@@ -18,8 +18,8 @@ public class GameManager : MonoBehaviour
     private GameObject currentPlayer;
     private CameraFollow mainCameraScript;
     private AudioSource audioSource;
-    public AudioClip heartDropClip;
 
+    // 로딩 중 입력 무시 카운터
     private int loadFrames = 0;
 
     [Header("Spawn Settings")]
@@ -31,14 +31,14 @@ public class GameManager : MonoBehaviour
     public int maxPlayerLives = 5;
 
     [Header("Time Settings")]
-    public float levelTimeLimit = 240.0f; // (★★★★★ 1. 제한 시간: 4분 = 240초 ★★★★★)
-    private float currentTimer; // 현재 남은 시간
+    public float levelTimeLimit = 240.0f; // 4분
+    private float currentTimer;
 
     [Header("UI Elements")]
     public Image[] hearts;
     public GameObject gameOverPanel;
     public TextMeshProUGUI levelText;
-    public TextMeshProUGUI timerText; // (★★★★★ 2. 타이머 텍스트 변수 추가 ★★★★★)
+    public TextMeshProUGUI timerText;
     public GameObject pausePanel;
     private bool isPaused = false;
 
@@ -52,6 +52,7 @@ public class GameManager : MonoBehaviour
     public AudioClip finalExplosionClip;
     public AudioClip portalSpawnSound;
     public AudioClip bgmClip;
+    public AudioClip heartDropClip; // 하트 드랍 사운드
 
     [Header("Block Probabilities")]
     public static float greenChance = 0.9f;
@@ -59,7 +60,6 @@ public class GameManager : MonoBehaviour
     public static float purpleChance = 0.0f;
     public static float redChance = 0.0f;
 
-    // (게임 오버 상태 확인 속성)
     public bool IsGameOver
     {
         get { return gameOverPanel != null && gameOverPanel.activeInHierarchy; }
@@ -89,8 +89,7 @@ public class GameManager : MonoBehaviour
             audioSource.loop = true;
             audioSource.Play();
         }
-
-        // UI 초기화는 OnSceneLoaded에서 통합 처리됨
+        // UI 초기화는 OnSceneLoaded에서 처리
     }
 
     void Update()
@@ -102,7 +101,7 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // ESC 키 감지 (게임 오버가 아닐 때만)
+        // ESC 키 감지
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             if (!IsGameOver)
@@ -111,20 +110,17 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // (★★★★★ 3. 타이머 로직 추가 ★★★★★)
-        // 일시정지 상태가 아니고, 게임 오버가 아니고, 플레이어가 살아있을 때만 시간 감소
+        // 타이머 로직
         if (!isPaused && !IsGameOver && playerLives > 0)
         {
             currentTimer -= Time.deltaTime;
 
-            // 시간이 다 되면 사망 처리
             if (currentTimer <= 0)
             {
                 currentTimer = 0;
                 PlayerInstantDeath();
             }
 
-            // UI 업데이트
             UpdateTimerUI();
         }
     }
@@ -141,75 +137,64 @@ public class GameManager : MonoBehaviour
 
     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        // 초기화 시 시간 정지 해제 보장
         isPaused = false;
         loadFrames = 2;
-        StartCoroutine(EnsureTimeRuns());
+        StartCoroutine(EnsureTimeRuns()); // 지연된 시간 복구 실행
 
-        // (★★★★★ 4. 레벨 시작 시 타이머 리셋 ★★★★★)
-        currentTimer = levelTimeLimit; // 240초로 초기화
+        currentTimer = levelTimeLimit; // 타이머 리셋
 
-        // 1. 카메라 스크립트 찾기
+        // 1. 카메라
         if (Camera.main != null)
         {
             mainCameraScript = Camera.main.GetComponent<CameraFollow>();
         }
 
-        // 2. 스폰 지점 계산
+        // 2. 스폰 지점
         LevelGenerator levelGen = FindObjectOfType<LevelGenerator>();
         float tileSize = (levelGen != null) ? levelGen.tileSize : 1.0f;
         float offset = tileSize / 2f;
         float spawnX = offset;
         currentSpawnPoint = new Vector3(spawnX, playerSpawnY, playerSpawnZ);
 
-        // 3. UI 하트들 새로 찾기
+        // 3. 하트 UI
         GameObject heartContainer = GameObject.Find("HeartPanel");
         if (heartContainer != null)
         {
             hearts = heartContainer.GetComponentsInChildren<Image>();
         }
-        else { Debug.LogError("HeartPanel을 찾을 수 없습니다!"); }
 
-        // 4. GameOverPanel 새로 찾기
+        // 4. GameOverPanel
         GameObject panel = GameObject.Find("GameOverPanel");
         if (panel != null)
         {
             gameOverPanel = panel;
             gameOverPanel.SetActive(false);
-            LinkGameOverButtons(); // 버튼 연결 함수 호출
+            LinkGameOverButtons();
         }
-        else { Debug.LogError("GameOverPanel을 찾을 수 없습니다!"); }
 
-
-        // 5. 레벨 텍스트 새로 찾기
+        // 5. 레벨 텍스트
         GameObject levelTextObject = GameObject.Find("LevelText");
         if (levelTextObject != null)
         {
             levelText = levelTextObject.GetComponent<TextMeshProUGUI>();
             UpdateLevelUI();
         }
-        else { Debug.LogError("LevelText 오브젝트를 찾을 수 없습니다!"); }
 
-        // (★★★★★ 5. 타이머 텍스트 새로 찾기 ★★★★★)
-        // 유니티 에디터에서 만든 "TimerText"를 찾아서 연결합니다.
+        // 6. 타이머 텍스트
         GameObject timerTextObject = GameObject.Find("TimerText");
         if (timerTextObject != null)
         {
             timerText = timerTextObject.GetComponent<TextMeshProUGUI>();
-            UpdateTimerUI(); // 초기 시간 표시
-        }
-        else
-        {
-            // 타이머 UI가 없어도 게임은 돌아가도록 에러 대신 경고만 출력
-            Debug.LogWarning("TimerText 오브젝트를 찾을 수 없습니다! UI를 추가해주세요.");
+            UpdateTimerUI();
         }
 
-        // 6. 일시정지 패널 찾기
+        // 7. 일시정지 패널
         GameObject pausePanelObject = GameObject.Find("PausePanel");
         if (pausePanelObject != null)
         {
             pausePanel = pausePanelObject;
 
-            // 버튼 연결
             Transform resumeBtn = pausePanel.transform.Find("ResumeButton");
             if (resumeBtn) resumeBtn.GetComponent<Button>().onClick.AddListener(TogglePause);
 
@@ -218,24 +203,25 @@ public class GameManager : MonoBehaviour
 
             pausePanel.SetActive(false);
         }
-        else { Debug.LogError("PausePanel을 찾을 수 없습니다!"); }
 
-        // 7. 플레이어 스폰 및 UI 업데이트
+        // 8. 플레이어 스폰 & UI 갱신
         SpawnPlayer();
         UpdateHeartsUI();
     }
 
+    // (지연된 시간 복구 코루틴 - 시작 시 멈춤 방지)
     private IEnumerator EnsureTimeRuns()
     {
-        yield return null;
+        yield return null; // 1프레임 대기
         Time.timeScale = 1f;
+        isPaused = false;
     }
 
-    // 게임오버 버튼 연결 헬퍼 함수
     public void LinkGameOverButtons()
     {
         if (gameOverPanel == null) return;
 
+        // "Restart" 라는 이름의 버튼을 찾음
         Button restartButton = gameOverPanel.transform.Find("Restart")?.GetComponent<Button>();
         if (restartButton != null)
         {
@@ -259,9 +245,13 @@ public class GameManager : MonoBehaviour
 
         UpdateHeartsUI();
 
-        // 피격 효과
         if (hitSoundClip != null && audioSource != null) { audioSource.PlayOneShot(hitSoundClip); }
-        // (폭발 효과 등은 생략 가능하거나 기존 유지)
+        if (smallExplosionPrefab != null)
+        {
+            Vector3 playerXZPos = new Vector3(currentPlayer.transform.position.x, 0, currentPlayer.transform.position.z);
+            Vector3 explosionPos = new Vector3(playerXZPos.x, 3f, playerXZPos.z);
+            Instantiate(smallExplosionPrefab, explosionPos, Quaternion.identity);
+        }
 
         if (playerLives <= 0) { HandleGameOver(); }
     }
@@ -281,18 +271,26 @@ public class GameManager : MonoBehaviour
         if (gameOverPanel != null)
         {
             gameOverPanel.SetActive(true);
-            LinkGameOverButtons(); // 패널 뜰 때 버튼 확실히 연결
+            LinkGameOverButtons();
         }
 
-        // 폭발 효과 및 사운드
         Vector3 pos = currentPlayer.transform.position;
         if (finalExplosionClip != null && audioSource != null) { audioSource.PlayOneShot(finalExplosionClip); }
         if (bigExplosionPrefab != null) { Instantiate(bigExplosionPrefab, pos, Quaternion.identity); }
 
+        // 불길 생성 (시간 정지여도 나오게 수정됨)
+        StartCoroutine(SpawnFlamesAfterDelay(new Vector3(pos.x, 0.5f, pos.z)));
+
         Destroy(currentPlayer);
         currentPlayer = null;
-
         Debug.Log("GAME OVER");
+    }
+
+    private IEnumerator SpawnFlamesAfterDelay(Vector3 position)
+    {
+        // 시간 무시하고 0.5초 대기 (WaitForSecondsRealtime 사용)
+        yield return new WaitForSecondsRealtime(0.5f);
+        if (mediumFlamesPrefab != null) { Instantiate(mediumFlamesPrefab, position, Quaternion.identity); }
     }
 
     void UpdateHeartsUI()
@@ -310,17 +308,14 @@ public class GameManager : MonoBehaviour
         if (levelText != null) levelText.text = "LEVEL " + currentLevel;
     }
 
-    // (★★★★★ 6. 타이머 UI 업데이트 함수 추가 ★★★★★)
     void UpdateTimerUI()
     {
         if (timerText != null)
         {
-            // 초 단위를 분:초 (04:00) 형식으로 변환
             int minutes = Mathf.FloorToInt(currentTimer / 60F);
             int seconds = Mathf.FloorToInt(currentTimer % 60F);
             timerText.text = string.Format("{0:00}:{1:00}", minutes, seconds);
 
-            // 시간이 10초 이하로 남으면 빨간색으로 경고 (선택사항)
             if (currentTimer <= 10f) timerText.color = Color.red;
             else timerText.color = Color.white;
         }
@@ -332,6 +327,12 @@ public class GameManager : MonoBehaviour
             audioSource.PlayOneShot(portalSpawnSound);
     }
 
+    public void PlayHeartDropSound()
+    {
+        if (audioSource != null && heartDropClip != null)
+            audioSource.PlayOneShot(heartDropClip);
+    }
+
     public void GoToNextLevel()
     {
         Time.timeScale = 1f;
@@ -339,7 +340,6 @@ public class GameManager : MonoBehaviour
         currentLevelLength++;
         currentLevel++;
 
-        // (난이도 조절 로직 유지)
         if (greenChance > 0.1f) { greenChance -= 0.1f; blueChance += 0.05f; if (blueChance > 0.4f) { purpleChance += 0.03f; redChance += 0.02f; } else { purpleChance += 0.05f; } } else if (blueChance > 0.1f) { blueChance -= 0.1f; purpleChance += 0.07f; redChance += 0.03f; } else { purpleChance -= 0.1f; redChance += 0.1f; }
         greenChance = Mathf.Clamp(greenChance, 0.0f, 1.0f); blueChance = Mathf.Clamp(blueChance, 0.0f, 1.0f); purpleChance = Mathf.Clamp(purpleChance, 0.0f, 1.0f); redChance = Mathf.Clamp(redChance, 0.0f, 1.0f);
         float total = greenChance + blueChance + purpleChance + redChance; greenChance /= total; blueChance /= total; purpleChance /= total; redChance /= total;
@@ -376,7 +376,6 @@ public class GameManager : MonoBehaviour
         currentLevelLength = 60;
         currentLevelWidth = 40;
         currentLevel = 1;
-        // (★★★★★ 7. 재시작 시 타이머도 리셋 ★★★★★)
         currentTimer = levelTimeLimit;
 
         greenChance = 0.9f; blueChance = 0.1f; purpleChance = 0.0f; redChance = 0.0f;
@@ -405,26 +404,23 @@ public class GameManager : MonoBehaviour
         isPaused = false;
         SceneManager.LoadScene("MainMenu");
     }
-    // (★★★★★ GameManager.cs 맨 아래에 추가할 함수 ★★★★★)
+
+    // (사라졌던 GoToMainMenu 복구)
+    public void GoToMainMenu()
+    {
+        Time.timeScale = 1f;
+        isPaused = false;
+        SceneManager.LoadScene("MainMenu");
+    }
+
     public void PlayerHeal(int amount)
     {
-        // 죽어있거나 이미 풀피면 회복 안 함
         if (playerLives <= 0 || playerLives >= maxPlayerLives) return;
 
         playerLives += amount;
-        if (playerLives > maxPlayerLives)
-        {
-            playerLives = maxPlayerLives;
-        }
+        if (playerLives > maxPlayerLives) playerLives = maxPlayerLives;
 
-        UpdateHeartsUI(); // 하트 UI 갱신
+        UpdateHeartsUI();
         Debug.Log("체력 회복! 현재 체력: " + playerLives);
-    }
-    public void PlayHeartDropSound()
-    {
-        if (audioSource != null && heartDropClip != null)
-        {
-            audioSource.PlayOneShot(heartDropClip);
-        }
     }
 }

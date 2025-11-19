@@ -1279,6 +1279,23 @@ PrefabInstance:
       objectReference: {fileID: 8300000, guid: e5c5bf690967200458b504e20dde9bb8, type: 3}
     - target: {fileID: 6656616758320500651, guid: 6f6c98ce45a65574fa0ae3d9945f3233,
         type: 3}
+      propertyPath: levelTimeLimit
+      value: 120
+      objectReference: {fileID: 0}
+    - target: {fileID: 6656616758320500651, guid: 6f6c98ce45a65574fa0ae3d9945f3233,
+        type: 3}
+      propertyPath: bigExplosionPrefab
+      value: 
+      objectReference: {fileID: 1121192042590650, guid: 593e4393377a34945b30a2b4b8573092,
+        type: 3}
+    - target: {fileID: 6656616758320500651, guid: 6f6c98ce45a65574fa0ae3d9945f3233,
+        type: 3}
+      propertyPath: mediumFlamesPrefab
+      value: 
+      objectReference: {fileID: 1956197547661106, guid: e4c519180262e224fbd9e8604ca9c3a4,
+        type: 3}
+    - target: {fileID: 6656616758320500651, guid: 6f6c98ce45a65574fa0ae3d9945f3233,
+        type: 3}
       propertyPath: hearts.Array.data[0]
       value: 
       objectReference: {fileID: 1447269200}
@@ -1302,6 +1319,12 @@ PrefabInstance:
       propertyPath: hearts.Array.data[4]
       value: 
       objectReference: {fileID: 511980461}
+    - target: {fileID: 6656616758320500651, guid: 6f6c98ce45a65574fa0ae3d9945f3233,
+        type: 3}
+      propertyPath: smallExplosionPrefab
+      value: 
+      objectReference: {fileID: 1828176872806910, guid: baee8430cf059354ebdda268009cb5c6,
+        type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
