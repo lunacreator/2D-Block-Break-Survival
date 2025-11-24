@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems; // (★★★★★ 1. 이 네임스페이스를 추가합니다 ★★★★★)
 
 public class PlayerBlaster : MonoBehaviour
 {
@@ -26,6 +27,13 @@ public class PlayerBlaster : MonoBehaviour
         // 그리고 쿨다운이 0 이하면 발사
         if (Input.GetMouseButton(0) && _cooldownTimer <= 0)
         {
+            // (★★★★★ 2. 핵심 추가: 마우스 포인터가 UI 위에 있는지 검사 ★★★★★)
+            // 마우스 포인터가 UI 위에 있다면(버튼을 누르는 상황) 발사하지 않고 함수를 종료합니다.
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+            {
+                return;
+            }
+
             _cooldownTimer = cooldownTime;
             Fire();
         }
