@@ -6,34 +6,44 @@ public class MainMenuManager : MonoBehaviour
 {
     [Header("Scene Settings")]
     [Tooltip("시작 버튼을 눌렀을 때 로드할 게임 씬의 이름입니다.")]
-    public string gameSceneName = "GameScene"; // (주의: 실제 게임 씬 이름과 같아야 합니다!)
+    public string gameSceneName = "SampleScene"; // (주의: 실제 씬 이름 확인!)
+
+    [Header("UI Elements")]
+    // (★★★★★ 2. 최고 레벨 텍스트 변수 추가 ★★★★★)
+    public TextMeshProUGUI highestLevelText;
 
     void Start()
     {
-        // 메인 메뉴에 들어오면 시간을 항상 정상 속도로 되돌립니다.
-        // (게임에서 죽거나 일시정지 상태로 나왔을 때를 대비함)
         Time.timeScale = 1f;
-
-        // 마우스 커서를 보이게 하고 잠금을 풉니다.
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
+
+        // (★★★★★ 3. 저장된 최고 레벨 불러오기 ★★★★★)
+        // 저장된 값이 없으면 기본값 1을 가져옵니다.
+        int highestLevel = PlayerPrefs.GetInt("HighestLevel", 1);
+
+        if (highestLevelText != null)
+        {
+            highestLevelText.text = "HIGHEST LEVEL: " + highestLevel;
+        }
     }
 
-    // "START" 버튼 연결용 함수
-    // "START" 버튼 연결용 함수
     public void OnStartClicked()
     {
         Debug.Log("게임 시작!");
-
-        // (변수 gameSceneName을 지우고, 여기에 "SampleScene"을 직접 적습니다)
-        // 따옴표("") 안에 실제 씬 이름과 대소문자까지 똑같이 적어야 합니다.
         SceneManager.LoadScene("SampleScene");
     }
 
-    // "EXIT" 버튼 연결용 함수
     public void OnExitClicked()
     {
         Debug.Log("게임 종료...");
-        Application.Quit(); // 빌드된 게임에서만 작동합니다.
+        Application.Quit();
+    }
+
+    // (선택 사항: 기록 초기화 버튼을 만들고 싶다면 연결하세요)
+    public void ResetProgress()
+    {
+        PlayerPrefs.DeleteKey("HighestLevel");
+        if (highestLevelText != null) highestLevelText.text = "HIGHEST LEVEL: 1";
     }
 }

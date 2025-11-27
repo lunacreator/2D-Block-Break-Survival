@@ -31,7 +31,7 @@ public class GameManager : MonoBehaviour
     public int maxPlayerLives = 5;
 
     [Header("Time Settings")]
-    public float levelTimeLimit = 240.0f; // 4분
+    public float levelTimeLimit = 240.0f; // 4분 (초 단위가 불편하면 이전 답변의 분 단위 코드를 쓰셔도 됩니다)
     private float currentTimer;
 
     [Header("UI Elements")]
@@ -52,7 +52,7 @@ public class GameManager : MonoBehaviour
     public AudioClip finalExplosionClip;
     public AudioClip portalSpawnSound;
     public AudioClip bgmClip;
-    public AudioClip heartDropClip; // 하트 드랍 사운드
+    public AudioClip heartDropClip;
 
     [Header("Block Probabilities")]
     public static float greenChance = 0.9f;
@@ -89,7 +89,6 @@ public class GameManager : MonoBehaviour
             audioSource.loop = true;
             audioSource.Play();
         }
-        // UI 초기화는 OnSceneLoaded에서 처리
     }
 
     void Update()
@@ -140,9 +139,16 @@ public class GameManager : MonoBehaviour
         // 초기화 시 시간 정지 해제 보장
         isPaused = false;
         loadFrames = 2;
-        StartCoroutine(EnsureTimeRuns()); // 지연된 시간 복구 실행
+        StartCoroutine(EnsureTimeRuns());
 
         currentTimer = levelTimeLimit; // 타이머 리셋
+
+        // (★★★★★ 1. 핵심 수정: 게임 씬에 들어오면 노래 다시 재생 ★★★★★)
+        // "MainMenu"가 아닌 씬(게임 씬)이 로드되었을 때, 노래가 꺼져있다면 다시 켭니다.
+        if (scene.name != "MainMenu" && audioSource != null && !audioSource.isPlaying)
+        {
+            audioSource.Play();
+        }
 
         // 1. 카메라
         if (Camera.main != null)
@@ -209,10 +215,9 @@ public class GameManager : MonoBehaviour
         UpdateHeartsUI();
     }
 
-    // (지연된 시간 복구 코루틴 - 시작 시 멈춤 방지)
     private IEnumerator EnsureTimeRuns()
     {
-        yield return null; // 1프레임 대기
+        yield return null;
         Time.timeScale = 1f;
         isPaused = false;
     }
@@ -221,7 +226,6 @@ public class GameManager : MonoBehaviour
     {
         if (gameOverPanel == null) return;
 
-        // "Restart" 라는 이름의 버튼을 찾음
         Button restartButton = gameOverPanel.transform.Find("Restart")?.GetComponent<Button>();
         if (restartButton != null)
         {
@@ -233,9 +237,79 @@ public class GameManager : MonoBehaviour
         if (mainMenuButton != null)
         {
             mainMenuButton.onClick.RemoveAllListeners();
-            mainMenuButton.onClick.AddListener(LoadMainMenu);
+            mainMenuButton.onClick.AddListener(LoadMainMenu); // GoToMainMenu 대신 통합된 LoadMainMenu 사용
         }
     }
+
+    // (★★★★★ 2. 핵심 수정: 게임 데이터를 초기화하는 헬퍼 함수 ★★★★★)
+    private void ResetGameData()
+    {
+        playerLives = maxPlayerLives;
+        currentLevelLength = 60;
+        currentLevelWidth = 40;
+        currentLevel = 1; // 레벨 1로 초기화
+        currentTimer = levelTimeLimit;
+
+        greenChance = 0.9f;
+        blueChance = 0.1f;
+        purpleChance = 0.0f;
+        redChance = 0.0f;
+    }
+
+    public void RestartGame()
+    {
+        Time.timeScale = 1f;
+        isPaused = false;
+
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
+        // 게임 데이터 초기화 함수 사용
+        ResetGameData();
+
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    public void TogglePause()
+    {
+        isPaused = !isPaused;
+        if (isPaused)
+        {
+            Time.timeScale = 0f;
+            if (pausePanel != null) pausePanel.SetActive(true);
+        }
+        else
+        {
+            Time.timeScale = 1f;
+            if (pausePanel != null) pausePanel.SetActive(false);
+        }
+    }
+
+    // (★★★★★ 3. 핵심 수정: 메인 메뉴로 나갈 때 초기화 및 노래 끄기 ★★★★★)
+    public void LoadMainMenu()
+    {
+        Time.timeScale = 1f;
+        isPaused = false;
+
+        // 1. 게임 데이터(레벨 등)를 싹 초기화합니다.
+        ResetGameData();
+
+        // 2. 노래를 끕니다.
+        if (audioSource != null)
+        {
+            audioSource.Stop();
+        }
+
+        // 메인 메뉴 씬 로드
+        SceneManager.LoadScene("MainMenu");
+    }
+
+    public void GoToMainMenu()
+    {
+        // LoadMainMenu와 기능이 같으므로 통합
+        LoadMainMenu();
+    }
+
+    // ... (기타 함수들: PlayerTookDamage, PlayerInstantDeath, HandleGameOver 등 기존 유지) ...
 
     public void PlayerTookDamage(int damage)
     {
@@ -278,7 +352,6 @@ public class GameManager : MonoBehaviour
         if (finalExplosionClip != null && audioSource != null) { audioSource.PlayOneShot(finalExplosionClip); }
         if (bigExplosionPrefab != null) { Instantiate(bigExplosionPrefab, pos, Quaternion.identity); }
 
-        // 불길 생성 (시간 정지여도 나오게 수정됨)
         StartCoroutine(SpawnFlamesAfterDelay(new Vector3(pos.x, 0.5f, pos.z)));
 
         Destroy(currentPlayer);
@@ -288,7 +361,6 @@ public class GameManager : MonoBehaviour
 
     private IEnumerator SpawnFlamesAfterDelay(Vector3 position)
     {
-        // 시간 무시하고 0.5초 대기 (WaitForSecondsRealtime 사용)
         yield return new WaitForSecondsRealtime(0.5f);
         if (mediumFlamesPrefab != null) { Instantiate(mediumFlamesPrefab, position, Quaternion.identity); }
     }
@@ -340,6 +412,15 @@ public class GameManager : MonoBehaviour
         currentLevelLength++;
         currentLevel++;
 
+        // (★★★★★ 1. 핵심 추가: 최고 레벨 저장 로직 ★★★★★)
+        // 현재 레벨이 저장된 'HighestLevel'보다 높으면 덮어씁니다.
+        if (currentLevel > PlayerPrefs.GetInt("HighestLevel", 1))
+        {
+            PlayerPrefs.SetInt("HighestLevel", currentLevel);
+            PlayerPrefs.Save(); // 저장 확정
+        }
+
+        // (이하 기존 난이도 조절 로직)
         if (greenChance > 0.1f) { greenChance -= 0.1f; blueChance += 0.05f; if (blueChance > 0.4f) { purpleChance += 0.03f; redChance += 0.02f; } else { purpleChance += 0.05f; } } else if (blueChance > 0.1f) { blueChance -= 0.1f; purpleChance += 0.07f; redChance += 0.03f; } else { purpleChance -= 0.1f; redChance += 0.1f; }
         greenChance = Mathf.Clamp(greenChance, 0.0f, 1.0f); blueChance = Mathf.Clamp(blueChance, 0.0f, 1.0f); purpleChance = Mathf.Clamp(purpleChance, 0.0f, 1.0f); redChance = Mathf.Clamp(redChance, 0.0f, 1.0f);
         float total = greenChance + blueChance + purpleChance + redChance; greenChance /= total; blueChance /= total; purpleChance /= total; redChance /= total;
@@ -363,54 +444,6 @@ public class GameManager : MonoBehaviour
             }
         }
         else { Debug.LogError("Player Prefab이 없습니다!"); }
-    }
-
-    public void RestartGame()
-    {
-        Time.timeScale = 1f;
-        isPaused = false;
-
-        if (gameOverPanel != null) gameOverPanel.SetActive(false);
-
-        playerLives = maxPlayerLives;
-        currentLevelLength = 60;
-        currentLevelWidth = 40;
-        currentLevel = 1;
-        currentTimer = levelTimeLimit;
-
-        greenChance = 0.9f; blueChance = 0.1f; purpleChance = 0.0f; redChance = 0.0f;
-
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-    }
-
-    public void TogglePause()
-    {
-        isPaused = !isPaused;
-        if (isPaused)
-        {
-            Time.timeScale = 0f;
-            if (pausePanel != null) pausePanel.SetActive(true);
-        }
-        else
-        {
-            Time.timeScale = 1f;
-            if (pausePanel != null) pausePanel.SetActive(false);
-        }
-    }
-
-    public void LoadMainMenu()
-    {
-        Time.timeScale = 1f;
-        isPaused = false;
-        SceneManager.LoadScene("MainMenu");
-    }
-
-    // (사라졌던 GoToMainMenu 복구)
-    public void GoToMainMenu()
-    {
-        Time.timeScale = 1f;
-        isPaused = false;
-        SceneManager.LoadScene("MainMenu");
     }
 
     public void PlayerHeal(int amount)
