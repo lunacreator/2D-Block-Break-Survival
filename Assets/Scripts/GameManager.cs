@@ -110,7 +110,7 @@ public class GameManager : MonoBehaviour
         }
 
         // 타이머 로직
-        if (!isPaused && !IsGameOver && playerLives > 0)
+        if (!isPaused && !IsGameOver && playerLives > 0 && SceneManager.GetActiveScene().name != "MainMenu")
         {
             currentTimer -= Time.deltaTime;
 
@@ -409,18 +409,21 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         isPaused = false;
-        currentLevelLength++;
-        currentLevel++;
 
-        // (★★★★★ 1. 핵심 추가: 최고 레벨 저장 로직 ★★★★★)
-        // 현재 레벨이 저장된 'HighestLevel'보다 높으면 덮어씁니다.
+        currentLevelLength++;
+        currentLevel++; // 레벨이 올랐습니다.
+
+        // (★★★★★ 핵심 수정: 조건문 추가 ★★★★★)
+        // "방금 오른 레벨"이 "저장된 최고 기록"보다 클 때만 저장합니다.
+        // 이 조건문이 없으면 레벨 1로 시작할 때 최고 기록도 1로 덮어씌워집니다.
         if (currentLevel > PlayerPrefs.GetInt("HighestLevel", 1))
         {
             PlayerPrefs.SetInt("HighestLevel", currentLevel);
-            PlayerPrefs.Save(); // 저장 확정
+            PlayerPrefs.Save();
+            Debug.Log("새로운 최고 기록 달성! Lv." + currentLevel);
         }
 
-        // (이하 기존 난이도 조절 로직)
+        // (이하 난이도 조절 로직 - 기존 그대로 유지)
         if (greenChance > 0.1f) { greenChance -= 0.1f; blueChance += 0.05f; if (blueChance > 0.4f) { purpleChance += 0.03f; redChance += 0.02f; } else { purpleChance += 0.05f; } } else if (blueChance > 0.1f) { blueChance -= 0.1f; purpleChance += 0.07f; redChance += 0.03f; } else { purpleChance -= 0.1f; redChance += 0.1f; }
         greenChance = Mathf.Clamp(greenChance, 0.0f, 1.0f); blueChance = Mathf.Clamp(blueChance, 0.0f, 1.0f); purpleChance = Mathf.Clamp(purpleChance, 0.0f, 1.0f); redChance = Mathf.Clamp(redChance, 0.0f, 1.0f);
         float total = greenChance + blueChance + purpleChance + redChance; greenChance /= total; blueChance /= total; purpleChance /= total; redChance /= total;
