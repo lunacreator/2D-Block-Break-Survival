@@ -233,9 +233,79 @@ public class GameManager : MonoBehaviour
         if (mainMenuButton != null)
         {
             mainMenuButton.onClick.RemoveAllListeners();
-            mainMenuButton.onClick.AddListener(LoadMainMenu);
+            mainMenuButton.onClick.AddListener(LoadMainMenu); // GoToMainMenu ��� ���յ� LoadMainMenu ���
         }
     }
+
+    // (�ڡڡڡڡ� 2. �ٽ� ����: ���� �����͸� �ʱ�ȭ�ϴ� ���� �Լ� �ڡڡڡڡ�)
+    private void ResetGameData()
+    {
+        playerLives = maxPlayerLives;
+        currentLevelLength = 60;
+        currentLevelWidth = 40;
+        currentLevel = 1; // ���� 1�� �ʱ�ȭ
+        currentTimer = levelTimeLimit;
+
+        greenChance = 0.9f;
+        blueChance = 0.1f;
+        purpleChance = 0.0f;
+        redChance = 0.0f;
+    }
+
+    public void RestartGame()
+    {
+        Time.timeScale = 1f;
+        isPaused = false;
+
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
+        // ���� ������ �ʱ�ȭ �Լ� ���
+        ResetGameData();
+
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    public void TogglePause()
+    {
+        isPaused = !isPaused;
+        if (isPaused)
+        {
+            Time.timeScale = 0f;
+            if (pausePanel != null) pausePanel.SetActive(true);
+        }
+        else
+        {
+            Time.timeScale = 1f;
+            if (pausePanel != null) pausePanel.SetActive(false);
+        }
+    }
+
+    // (�ڡڡڡڡ� 3. �ٽ� ����: ���� �޴��� ���� �� �ʱ�ȭ �� �뷡 ���� �ڡڡڡڡ�)
+    public void LoadMainMenu()
+    {
+        Time.timeScale = 1f;
+        isPaused = false;
+
+        // 1. ���� ������(���� ��)�� �� �ʱ�ȭ�մϴ�.
+        ResetGameData();
+
+        // 2. �뷡�� ���ϴ�.
+        if (audioSource != null)
+        {
+            audioSource.Stop();
+        }
+
+        // ���� �޴� �� �ε�
+        SceneManager.LoadScene("MainMenu");
+    }
+
+    public void GoToMainMenu()
+    {
+        // LoadMainMenu�� ����� �����Ƿ� ����
+        LoadMainMenu();
+    }
+
+    // ... (��Ÿ �Լ���: PlayerTookDamage, PlayerInstantDeath, HandleGameOver �� ���� ����) ...
 
     public void PlayerTookDamage(int damage)
     {
@@ -337,9 +407,21 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         isPaused = false;
-        currentLevelLength++;
-        currentLevel++;
 
+        currentLevelLength++;
+        currentLevel++; // ������ �ö����ϴ�.
+
+        // (�ڡڡڡڡ� �ٽ� ����: ���ǹ� �߰� �ڡڡڡڡ�)
+        // "��� ���� ����"�� "����� �ְ� ���"���� Ŭ ���� �����մϴ�.
+        // �� ���ǹ��� ������ ���� 1�� ������ �� �ְ� ��ϵ� 1�� ��������ϴ�.
+        if (currentLevel > PlayerPrefs.GetInt("HighestLevel", 1))
+        {
+            PlayerPrefs.SetInt("HighestLevel", currentLevel);
+            PlayerPrefs.Save();
+            Debug.Log("���ο� �ְ� ��� �޼�! Lv." + currentLevel);
+        }
+
+        // (���� ���̵� ���� ���� - ���� �״�� ����)
         if (greenChance > 0.1f) { greenChance -= 0.1f; blueChance += 0.05f; if (blueChance > 0.4f) { purpleChance += 0.03f; redChance += 0.02f; } else { purpleChance += 0.05f; } } else if (blueChance > 0.1f) { blueChance -= 0.1f; purpleChance += 0.07f; redChance += 0.03f; } else { purpleChance -= 0.1f; redChance += 0.1f; }
         greenChance = Mathf.Clamp(greenChance, 0.0f, 1.0f); blueChance = Mathf.Clamp(blueChance, 0.0f, 1.0f); purpleChance = Mathf.Clamp(purpleChance, 0.0f, 1.0f); redChance = Mathf.Clamp(redChance, 0.0f, 1.0f);
         float total = greenChance + blueChance + purpleChance + redChance; greenChance /= total; blueChance /= total; purpleChance /= total; redChance /= total;
